@@ -1,0 +1,21 @@
+{
+  "name": "aplicar-porcentaje-precio",
+  "version": "1.0.0",
+  "description": "Aplica un porcentaje a la columna 'Precio' de un archivo Excel",
+  "main": "aplicarPorcentaje.js",
+  "scripts": {
+    "dev": "next dev -p 5175",
+    "build": "next build",
+    "start": "next start -p 5175",
+    "cli": "node aplicarPorcentaje.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1116.0",
+    "@aws-sdk/client-s3": "^3.1116.0",
+    "@aws-sdk/lib-dynamodb": "^3.1116.0",
+    "exceljs": "^4.4.0",
+    "next": "^16.3.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  }
+}
