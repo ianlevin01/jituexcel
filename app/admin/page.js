@@ -110,14 +110,31 @@ export default function Admin() {
     if (!archivoBase) return;
 
     setSubiendoBase(true);
-    setMensajeBase({ tipo: "pendiente", texto: "Subiendo..." });
 
     try {
-      const formData = new FormData();
-      formData.append("file", archivoBase);
-      const respuesta = await fetch("/api/base-excel", { method: "POST", body: formData });
-      const data = await respuesta.json().catch(() => ({}));
-      if (!respuesta.ok) throw new Error(data.error || "No se pudo subir el excel base.");
+      setMensajeBase({ tipo: "pendiente", texto: "Preparando subida..." });
+      const presignRes = await fetch("/api/base-excel/presigned-url", { method: "POST" });
+      const presignData = await presignRes.json().catch(() => ({}));
+      if (!presignRes.ok) throw new Error(presignData.error || "No se pudo iniciar la subida.");
+      const { url, key } = presignData;
+
+      setMensajeBase({ tipo: "pendiente", texto: "Subiendo archivo a S3..." });
+      const putRes = await fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+        body: archivoBase,
+      });
+      if (!putRes.ok) throw new Error("No se pudo subir el archivo a S3.");
+
+      setMensajeBase({ tipo: "pendiente", texto: "Validando columnas..." });
+      const confirmRes = await fetch("/api/base-excel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key }),
+      });
+      const data = await confirmRes.json().catch(() => ({}));
+      if (!confirmRes.ok) throw new Error(data.error || "No se pudo confirmar el excel base.");
+
       setBaseInfo(data);
       setArchivoBase(null);
       setMensajeBase({ tipo: "ok", texto: "Excel base actualizado." });

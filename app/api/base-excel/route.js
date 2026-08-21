@@ -1,5 +1,5 @@
 const ExcelJS = require("exceljs");
-const { getBaseExcelMetadata, putBaseExcelBuffer } = require("../../../lib/s3");
+const { getBaseExcelMetadata, getObjectBuffer, promoteToBaseExcel, deleteObject } = require("../../../lib/s3");
 const { workbookTieneColumnasRequeridas } = require("../../../lib/excel");
 
 export const runtime = "nodejs";
@@ -11,30 +11,45 @@ export async function GET() {
 }
 
 export async function POST(request) {
-  const formData = await request.formData();
-  const file = formData.get("file");
-
-  if (!file) {
-    return Response.json({ error: "Falta el archivo." }, { status: 400 });
-  }
-
-  const buffer = Buffer.from(await file.arrayBuffer());
-
-  const workbook = new ExcelJS.Workbook();
   try {
-    await workbook.xlsx.load(buffer);
-  } catch {
-    return Response.json({ error: "El archivo no es un Excel válido." }, { status: 400 });
-  }
+    const body = await request.json().catch(() => ({}));
+    const key = body.key;
 
-  if (!workbookTieneColumnasRequeridas(workbook)) {
-    return Response.json(
-      { error: 'El excel debe tener columnas "Item No." y "Precio".' },
-      { status: 400 }
-    );
-  }
+    if (!key) {
+      return Response.json({ error: "Falta la key del archivo subido." }, { status: 400 });
+    }
 
-  await putBaseExcelBuffer(buffer);
-  const metadata = await getBaseExcelMetadata();
-  return Response.json(metadata);
+    let buffer;
+    try {
+      buffer = await getObjectBuffer(key);
+    } catch (err) {
+      return Response.json(
+        { error: `No se pudo leer el archivo subido a S3 (${err.name}: ${err.message}).` },
+        { status: 400 }
+      );
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    try {
+      await workbook.xlsx.load(buffer);
+    } catch (err) {
+      await deleteObject(key).catch(() => {});
+      return Response.json({ error: `El archivo no es un Excel válido (${err.message}).` }, { status: 400 });
+    }
+
+    if (!workbookTieneColumnasRequeridas(workbook)) {
+      await deleteObject(key).catch(() => {});
+      return Response.json(
+        { error: 'El excel debe tener columnas "Item No." y "Precio".' },
+        { status: 400 }
+      );
+    }
+
+    await promoteToBaseExcel(key);
+    const metadata = await getBaseExcelMetadata();
+    return Response.json(metadata);
+  } catch (err) {
+    console.error("Error confirmando excel base:", err);
+    return Response.json({ error: `${err.name}: ${err.message}` }, { status: 500 });
+  }
 }
