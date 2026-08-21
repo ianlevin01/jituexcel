@@ -29,7 +29,7 @@ export async function POST(request) {
 
   if (!workbookTieneColumnasRequeridas(workbook)) {
     return Response.json(
-      { error: 'El excel debe tener columnas "Item No." y "Precios".' },
+      { error: 'El excel debe tener columnas "Item No." y "Precio".' },
       { status: 400 }
     );
   }

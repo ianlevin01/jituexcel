@@ -39,7 +39,7 @@ export async function POST(request) {
 
   if (hojasActualizadas === 0) {
     return Response.json(
-      { error: 'No se encontraron columnas "Item No." y "Precios" en común entre los dos archivos.' },
+      { error: 'No se encontraron columnas "Item No." y "Precio" en común entre los dos archivos.' },
       { status: 400 }
     );
   }

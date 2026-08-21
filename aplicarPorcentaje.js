@@ -3,7 +3,7 @@ const path = require("path");
 const readline = require("readline");
 const ExcelJS = require("exceljs");
 
-const NOMBRE_COLUMNA = "precios";
+const NOMBRES_COLUMNA_ACEPTADOS = ["precio", "precios"];
 const ARCHIVO_BASE = "base.xlsx";
 const ARCHIVO_A_MODIFICAR = "actualizados.xlsx";
 
@@ -14,7 +14,7 @@ function pedirPorcentaje() {
   });
 
   return new Promise((resolve, reject) => {
-    rl.question("¿Qué porcentaje querés aplicarle a la columna Precios? ", (respuesta) => {
+    rl.question("¿Qué porcentaje querés aplicarle a la columna Precio? ", (respuesta) => {
       rl.close();
       const porcentaje = Number(respuesta.replace(",", "."));
       if (Number.isNaN(porcentaje)) {
@@ -29,7 +29,7 @@ function pedirPorcentaje() {
 function encontrarColumnaPrecios(filaEncabezados) {
   let columna = null;
   filaEncabezados.eachCell((celda, numeroColumna) => {
-    if (typeof celda.value === "string" && celda.value.trim().toLowerCase() === NOMBRE_COLUMNA) {
+    if (typeof celda.value === "string" && NOMBRES_COLUMNA_ACEPTADOS.includes(celda.value.trim().toLowerCase())) {
       columna = numeroColumna;
     }
   });
@@ -56,7 +56,7 @@ function aplicarPorcentaje(workbookBase, workbookAModificar, porcentaje) {
 
     const columnaPreciosBase = encontrarColumnaPrecios(hojaBase.getRow(1));
     if (!columnaPreciosBase) {
-      console.warn(`Aviso: la hoja "${hojaBase.name}" de ${ARCHIVO_BASE} no tiene columna "Precios". Se omite.`);
+      console.warn(`Aviso: la hoja "${hojaBase.name}" de ${ARCHIVO_BASE} no tiene columna "Precio". Se omite.`);
       return;
     }
 
@@ -105,13 +105,13 @@ async function main() {
   const { hojasActualizadas, filasOmitidas } = aplicarPorcentaje(workbookBase, workbookAModificar, porcentaje);
 
   if (hojasActualizadas === 0) {
-    console.error(`No se encontró ninguna columna "Precios" en común entre ${ARCHIVO_BASE} y ${ARCHIVO_A_MODIFICAR}.`);
+    console.error(`No se encontró ninguna columna "Precio" en común entre ${ARCHIVO_BASE} y ${ARCHIVO_A_MODIFICAR}.`);
     process.exit(1);
   }
 
   await workbookAModificar.xlsx.writeFile(rutaAModificar);
 
-  console.log(`Listo. Se aplicó ${porcentaje}% a la columna "Precios" (precio base × ${1 + porcentaje / 100}).`);
+  console.log(`Listo. Se aplicó ${porcentaje}% a la columna "Precio" (precio base × ${1 + porcentaje / 100}).`);
   if (filasOmitidas > 0) {
     console.log(`Se omitieron ${filasOmitidas} fila(s) sin precio base numérico.`);
   }

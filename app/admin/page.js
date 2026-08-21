@@ -147,7 +147,7 @@ export default function Admin() {
           <form onSubmit={subirBase}>
             <div className="field">
               <label htmlFor="archivoBase">
-                Reemplazar excel base <span className="hint">(columnas "Item No." y "Precios")</span>
+                Reemplazar excel base <span className="hint">(columnas "Item No." y "Precio")</span>
               </label>
               <input
                 type="file"
