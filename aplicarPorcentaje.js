@@ -3,7 +3,7 @@ const path = require("path");
 const readline = require("readline");
 const ExcelJS = require("exceljs");
 
-const NOMBRES_COLUMNA_ACEPTADOS = ["precio", "precios"];
+const PREFIJO_COLUMNA_PRECIO = "precio";
 const ARCHIVO_BASE = "base.xlsx";
 const ARCHIVO_A_MODIFICAR = "actualizados.xlsx";
 
@@ -29,7 +29,7 @@ function pedirPorcentaje() {
 function encontrarColumnaPrecios(filaEncabezados) {
   let columna = null;
   filaEncabezados.eachCell((celda, numeroColumna) => {
-    if (typeof celda.value === "string" && NOMBRES_COLUMNA_ACEPTADOS.includes(celda.value.trim().toLowerCase())) {
+    if (typeof celda.value === "string" && celda.value.trim().toLowerCase().startsWith(PREFIJO_COLUMNA_PRECIO)) {
       columna = numeroColumna;
     }
   });
