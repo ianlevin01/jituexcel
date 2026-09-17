@@ -1,5 +1,11 @@
 const ExcelJS = require("exceljs");
-const { getBaseExcelMetadata, getObjectBuffer, promoteToBaseExcel, deleteObject } = require("../../../lib/s3");
+const {
+  getBaseExcelMetadata,
+  getObjectBuffer,
+  getObjectSize,
+  promoteToBaseExcel,
+  deleteObject,
+} = require("../../../lib/s3");
 const { workbookTieneColumnasRequeridas } = require("../../../lib/excel");
 
 export const runtime = "nodejs";
@@ -13,10 +19,23 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const key = body.key;
+    const { key, tamanioEsperado } = body;
 
     if (!key) {
       return Response.json({ error: "Falta la key del archivo subido." }, { status: 400 });
+    }
+
+    if (tamanioEsperado) {
+      const tamanioReal = await getObjectSize(key);
+      if (tamanioReal !== tamanioEsperado) {
+        await deleteObject(key).catch(() => {});
+        return Response.json(
+          {
+            error: `La subida a S3 quedó incompleta (se recibieron ${tamanioReal} de ${tamanioEsperado} bytes). Probá de nuevo, puede ser por una conexión lenta o inestable.`,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     let buffer;

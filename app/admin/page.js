@@ -135,7 +135,7 @@ export default function Admin() {
       const confirmRes = await fetch("/api/base-excel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key }),
+        body: JSON.stringify({ key, tamanioEsperado: archivoBase.size }),
       });
       const data = await confirmRes.json().catch(() => ({}));
       if (!confirmRes.ok) throw new Error(data.error || "No se pudo confirmar el excel base.");
@@ -175,7 +175,7 @@ export default function Admin() {
       const respuesta = await fetch("/api/ordenar-excel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key }),
+        body: JSON.stringify({ key, tamanioEsperado: archivoOrdenar.size }),
       });
       const data = await respuesta.json().catch(() => ({}));
       if (!respuesta.ok) throw new Error(data.error || "No se pudo ordenar el excel.");

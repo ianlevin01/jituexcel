@@ -58,7 +58,7 @@ export default function Home() {
       const respuesta = await fetch("/api/reprice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clienteId: clienteSeleccionado.clienteId, key }),
+        body: JSON.stringify({ clienteId: clienteSeleccionado.clienteId, key, tamanioEsperado: archivo.size }),
       });
 
       const data = await respuesta.json().catch(() => ({}));

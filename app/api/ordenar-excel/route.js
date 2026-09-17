@@ -1,6 +1,12 @@
 const crypto = require("crypto");
 const ExcelJS = require("exceljs");
-const { getObjectBuffer, putObjectBuffer, getPresignedDownloadUrl, deleteObject } = require("../../../lib/s3");
+const {
+  getObjectBuffer,
+  getObjectSize,
+  putObjectBuffer,
+  getPresignedDownloadUrl,
+  deleteObject,
+} = require("../../../lib/s3");
 const { reordenarPorCategoria } = require("../../../lib/excel-images");
 const { clasificarImagenes } = require("../../../lib/openai");
 
@@ -12,11 +18,24 @@ export async function POST(request) {
   let uploadKey;
   try {
     const body = await request.json().catch(() => ({}));
-    const { key } = body;
+    const { key, tamanioEsperado } = body;
     uploadKey = key;
 
     if (!key) {
       return Response.json({ error: "Falta la key del archivo subido." }, { status: 400 });
+    }
+
+    if (tamanioEsperado) {
+      const tamanioReal = await getObjectSize(key);
+      if (tamanioReal !== tamanioEsperado) {
+        await deleteObject(key).catch(() => {});
+        return Response.json(
+          {
+            error: `La subida a S3 quedó incompleta (se recibieron ${tamanioReal} de ${tamanioEsperado} bytes). Probá de nuevo, puede ser por una conexión lenta o inestable.`,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     const buffer = await getObjectBuffer(key);

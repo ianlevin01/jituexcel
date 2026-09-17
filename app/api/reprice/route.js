@@ -3,6 +3,7 @@ const { getCliente } = require("../../../lib/dynamodb");
 const {
   getBaseExcelBuffer,
   getObjectBuffer,
+  getObjectSize,
   putObjectBuffer,
   getPresignedDownloadUrl,
   deleteObject,
@@ -16,11 +17,24 @@ export async function POST(request) {
   let uploadKey;
   try {
     const body = await request.json().catch(() => ({}));
-    const { clienteId, key } = body;
+    const { clienteId, key, tamanioEsperado } = body;
     uploadKey = key;
 
     if (!clienteId || !key) {
       return Response.json({ error: "Falta el cliente o el archivo." }, { status: 400 });
+    }
+
+    if (tamanioEsperado) {
+      const tamanioReal = await getObjectSize(key);
+      if (tamanioReal !== tamanioEsperado) {
+        await deleteObject(key).catch(() => {});
+        return Response.json(
+          {
+            error: `La subida a S3 quedó incompleta (se recibieron ${tamanioReal} de ${tamanioEsperado} bytes). Probá de nuevo, puede ser por una conexión lenta o inestable.`,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     const cliente = await getCliente(clienteId);
