@@ -26,6 +26,11 @@ export default function Admin() {
   const [subiendoBase, setSubiendoBase] = useState(false);
   const [mensajeBase, setMensajeBase] = useState(null);
 
+  const [archivoOrdenar, setArchivoOrdenar] = useState(null);
+  const [ordenando, setOrdenando] = useState(false);
+  const [mensajeOrdenar, setMensajeOrdenar] = useState(null);
+  const [resumenOrdenar, setResumenOrdenar] = useState(null);
+
   function cargarClientes() {
     setCargandoClientes(true);
     return fetch("/api/clientes")
@@ -145,6 +150,53 @@ export default function Admin() {
     }
   }
 
+  async function ordenarExcel(e) {
+    e.preventDefault();
+    if (!archivoOrdenar) return;
+
+    setOrdenando(true);
+    setResumenOrdenar(null);
+
+    try {
+      setMensajeOrdenar({ tipo: "pendiente", texto: "Subiendo archivo..." });
+      const presignRes = await fetch("/api/ordenar-excel/upload-url", { method: "POST" });
+      const presignData = await presignRes.json().catch(() => ({}));
+      if (!presignRes.ok) throw new Error(presignData.error || "No se pudo iniciar la subida.");
+      const { url, key } = presignData;
+
+      const putRes = await fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+        body: archivoOrdenar,
+      });
+      if (!putRes.ok) throw new Error("No se pudo subir el archivo a S3.");
+
+      setMensajeOrdenar({ tipo: "pendiente", texto: "Clasificando imágenes con IA... puede tardar un rato." });
+      const respuesta = await fetch("/api/ordenar-excel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key }),
+      });
+      const data = await respuesta.json().catch(() => ({}));
+      if (!respuesta.ok) throw new Error(data.error || "No se pudo ordenar el excel.");
+
+      const a = document.createElement("a");
+      a.href = data.downloadUrl;
+      a.download = "ordenado.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      setResumenOrdenar(data.resumen || null);
+      setArchivoOrdenar(null);
+      setMensajeOrdenar({ tipo: "ok", texto: "Listo, se descargó ordenado.xlsx." });
+    } catch (err) {
+      setMensajeOrdenar({ tipo: "error", texto: err.message });
+    } finally {
+      setOrdenando(false);
+    }
+  }
+
   return (
     <div className="page">
       <div>
@@ -152,6 +204,42 @@ export default function Admin() {
           <a href="/">Descargar</a>
           <a href="/admin">Administración</a>
         </nav>
+
+        <div className="card">
+          <h2>Ordenar excel por imagen</h2>
+          <p className="subtitle">
+            Sub&iacute; cualquier excel con fotos de productos y lo reordena agrupando los que se parecen (usa IA para
+            clasificar cada foto).
+          </p>
+
+          <form onSubmit={ordenarExcel}>
+            <div className="field">
+              <label htmlFor="archivoOrdenar">Excel con imágenes</label>
+              <input
+                type="file"
+                id="archivoOrdenar"
+                accept=".xlsx"
+                onChange={(e) => setArchivoOrdenar(e.target.files[0] || null)}
+              />
+            </div>
+            <button type="submit" disabled={!archivoOrdenar || ordenando}>
+              Ordenar y descargar
+            </button>
+          </form>
+
+          {mensajeOrdenar && <div className={`mensaje ${mensajeOrdenar.tipo}`}>{mensajeOrdenar.texto}</div>}
+
+          {resumenOrdenar && (
+            <ul className="lista-clientes" style={{ marginTop: 12 }}>
+              {resumenOrdenar.map((r) => (
+                <li key={r.categoria}>
+                  <span className="cliente-nombre">{r.categoria}</span>
+                  <span className="cliente-porcentaje">{r.cantidad} fila(s)</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
         <div className="card">
           <h2>Excel base</h2>

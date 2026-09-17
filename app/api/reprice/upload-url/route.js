@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST() {
   try {
-    const { url, key } = await getPresignedUploadUrl("base/pending-");
+    const { url, key } = await getPresignedUploadUrl("uploads/pending-");
     return Response.json({ url, key });
   } catch (err) {
     console.error("Error generando URL prefirmada:", err);

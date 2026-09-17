@@ -1,26 +1,25 @@
+const crypto = require("crypto");
 const { getCliente } = require("../../../lib/dynamodb");
-const { getBaseExcelBuffer } = require("../../../lib/s3");
+const {
+  getBaseExcelBuffer,
+  getObjectBuffer,
+  putObjectBuffer,
+  getPresignedDownloadUrl,
+  deleteObject,
+} = require("../../../lib/s3");
 const { repreciarDesdeBuffers } = require("../../../lib/excel");
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request) {
+  let uploadKey;
   try {
-    let formData;
-    try {
-      formData = await request.formData();
-    } catch (err) {
-      return Response.json(
-        { error: `No se pudo leer el archivo subido (${err.message}). Puede ser demasiado grande.` },
-        { status: 400 }
-      );
-    }
+    const body = await request.json().catch(() => ({}));
+    const { clienteId, key } = body;
+    uploadKey = key;
 
-    const clienteId = formData.get("clienteId");
-    const file = formData.get("file");
-
-    if (!clienteId || !file) {
+    if (!clienteId || !key) {
       return Response.json({ error: "Falta el cliente o el archivo." }, { status: 400 });
     }
 
@@ -39,7 +38,7 @@ export async function POST(request) {
       throw err;
     }
 
-    const bufferAModificar = Buffer.from(await file.arrayBuffer());
+    const bufferAModificar = await getObjectBuffer(key);
 
     const { buffer, hojasActualizadas, filasOmitidas } = await repreciarDesdeBuffers(
       bufferBase,
@@ -54,16 +53,16 @@ export async function POST(request) {
       );
     }
 
-    return new Response(buffer, {
-      status: 200,
-      headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": 'attachment; filename="actualizados.xlsx"',
-        "X-Filas-Omitidas": String(filasOmitidas),
-      },
-    });
+    const outputKey = `outputs/actualizados-${crypto.randomUUID()}.xlsx`;
+    await putObjectBuffer(outputKey, buffer);
+    const downloadUrl = await getPresignedDownloadUrl(outputKey, "actualizados.xlsx");
+
+    deleteObject(key).catch(() => {});
+
+    return Response.json({ downloadUrl, filasOmitidas });
   } catch (err) {
     console.error("Error en /api/reprice:", err);
+    if (uploadKey) deleteObject(uploadKey).catch(() => {});
     return Response.json({ error: `${err.name}: ${err.message}` }, { status: 500 });
   }
 }

@@ -1,0 +1,13 @@
+▲ Next.js 16.3.1 (Turbopack)
+- Local:         http://localhost:5175
+- Network:       http://192.168.56.1:5175
+- Environments: .env.local
+✓ Ready in 13.2s
+✓ Running next.config.js took 146ms
+
+ GET / 200 in 2.1s (next.js: 1663ms, application-code: 424ms)
+ GET / 200 in 164ms (next.js: 52ms, application-code: 112ms)
+ POST /api/ordenar-excel/upload-url 200 in 3.1s (next.js: 1044ms, application-code: 2.0s)
+ POST /api/ordenar-excel 200 in 5.9s (next.js: 1415ms, application-code: 4.5s)
+ POST /api/ordenar-excel/upload-url 200 in 74ms (next.js: 45ms, application-code: 29ms)
+ POST /api/ordenar-excel 200 in 1668ms (next.js: 13ms, application-code: 1655ms)

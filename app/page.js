@@ -39,31 +39,39 @@ export default function Home() {
     if (!clienteSeleccionado || !archivo) return;
 
     setProcesando(true);
-    setMensaje({ tipo: "pendiente", texto: "Procesando..." });
 
     try {
-      const formData = new FormData();
-      formData.append("clienteId", clienteSeleccionado.clienteId);
-      formData.append("file", archivo);
+      setMensaje({ tipo: "pendiente", texto: "Subiendo archivo..." });
+      const presignRes = await fetch("/api/reprice/upload-url", { method: "POST" });
+      const presignData = await presignRes.json().catch(() => ({}));
+      if (!presignRes.ok) throw new Error(presignData.error || "No se pudo iniciar la subida.");
+      const { url: uploadUrl, key } = presignData;
 
-      const respuesta = await fetch("/api/reprice", { method: "POST", body: formData });
+      const putRes = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+        body: archivo,
+      });
+      if (!putRes.ok) throw new Error("No se pudo subir el archivo a S3.");
 
-      if (!respuesta.ok) {
-        const error = await respuesta.json().catch(() => ({}));
-        throw new Error(error.error || "No se pudo generar el excel.");
-      }
+      setMensaje({ tipo: "pendiente", texto: "Procesando..." });
+      const respuesta = await fetch("/api/reprice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clienteId: clienteSeleccionado.clienteId, key }),
+      });
 
-      const filasOmitidas = Number(respuesta.headers.get("X-Filas-Omitidas") || "0");
-      const blob = await respuesta.blob();
-      const url = URL.createObjectURL(blob);
+      const data = await respuesta.json().catch(() => ({}));
+      if (!respuesta.ok) throw new Error(data.error || "No se pudo generar el excel.");
+
       const a = document.createElement("a");
-      a.href = url;
+      a.href = data.downloadUrl;
       a.download = "actualizados.xlsx";
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(url);
 
+      const filasOmitidas = Number(data.filasOmitidas || 0);
       let texto = `Listo. Se descargó actualizados.xlsx para "${clienteSeleccionado.nombre}" (${clienteSeleccionado.porcentaje}%).`;
       if (filasOmitidas > 0) {
         texto += `\nSe omitieron ${filasOmitidas} fila(s) sin coincidencia en el excel base.`;
