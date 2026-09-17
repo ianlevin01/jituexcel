@@ -13,6 +13,18 @@ function formatearBytes(bytes) {
   return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
+async function parsearRespuestaJson(respuesta) {
+  const texto = await respuesta.text();
+  try {
+    return JSON.parse(texto);
+  } catch {
+    console.error("Respuesta no-JSON del servidor:", respuesta.status, texto.slice(0, 500));
+    return {
+      error: `El servidor respondió algo inesperado (status ${respuesta.status}): ${texto.slice(0, 200) || "(vacío)"}`,
+    };
+  }
+}
+
 export default function Admin() {
   const [clientes, setClientes] = useState([]);
   const [cargandoClientes, setCargandoClientes] = useState(true);
@@ -159,26 +171,48 @@ export default function Admin() {
 
     try {
       setMensajeOrdenar({ tipo: "pendiente", texto: "Subiendo archivo..." });
+      console.log("[ordenar-excel] pidiendo url prefirmada...");
       const presignRes = await fetch("/api/ordenar-excel/upload-url", { method: "POST" });
-      const presignData = await presignRes.json().catch(() => ({}));
+      const presignData = await parsearRespuestaJson(presignRes);
       if (!presignRes.ok) throw new Error(presignData.error || "No se pudo iniciar la subida.");
       const { url, key } = presignData;
+      console.log("[ordenar-excel] url prefirmada ok, key:", key);
 
       const putRes = await fetch(url, {
         method: "PUT",
         headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
         body: archivoOrdenar,
       });
-      if (!putRes.ok) throw new Error("No se pudo subir el archivo a S3.");
+      if (!putRes.ok) {
+        const texto = await putRes.text().catch(() => "");
+        throw new Error(`No se pudo subir el archivo a S3 (status ${putRes.status}). ${texto.slice(0, 200)}`);
+      }
+      console.log("[ordenar-excel] subida a S3 ok, procesando...");
 
-      setMensajeOrdenar({ tipo: "pendiente", texto: "Clasificando imágenes con IA... puede tardar un rato." });
-      const respuesta = await fetch("/api/ordenar-excel", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key, tamanioEsperado: archivoOrdenar.size }),
-      });
-      const data = await respuesta.json().catch(() => ({}));
-      if (!respuesta.ok) throw new Error(data.error || "No se pudo ordenar el excel.");
+      setMensajeOrdenar({ tipo: "pendiente", texto: "Clasificando imágenes con IA... puede tardar varios minutos con archivos grandes." });
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 280000);
+      let respuesta;
+      try {
+        respuesta = await fetch("/api/ordenar-excel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key, tamanioEsperado: archivoOrdenar.size }),
+          signal: controller.signal,
+        });
+      } catch (err) {
+        if (err.name === "AbortError") {
+          throw new Error("Se agotó el tiempo de espera (más de 4 minutos y medio) procesando el excel.");
+        }
+        throw new Error(`Error de red hablando con el servidor: ${err.message}`);
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      const data = await parsearRespuestaJson(respuesta);
+      if (!respuesta.ok) throw new Error(data.error || `El servidor respondió con error (status ${respuesta.status}).`);
+      console.log("[ordenar-excel] procesado ok:", data);
 
       const a = document.createElement("a");
       a.href = data.downloadUrl;
@@ -191,6 +225,7 @@ export default function Admin() {
       setArchivoOrdenar(null);
       setMensajeOrdenar({ tipo: "ok", texto: "Listo, se descargó ordenado.xlsx." });
     } catch (err) {
+      console.error("[ordenar-excel] error:", err);
       setMensajeOrdenar({ tipo: "error", texto: err.message });
     } finally {
       setOrdenando(false);
