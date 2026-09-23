@@ -162,6 +162,25 @@ export default function Admin() {
     }
   }
 
+  async function esperarJob(jobId, actualizarMensaje) {
+    const inicio = Date.now();
+    const LIMITE_MS = 14 * 60 * 1000; // 14 minutos (la background function tiene hasta 15)
+
+    while (Date.now() - inicio < LIMITE_MS) {
+      const res = await fetch(`/api/ordenar-excel/status?jobId=${jobId}`);
+      const job = await parsearRespuestaJson(res);
+      if (!res.ok) throw new Error(job.error || `No se pudo consultar el estado (status ${res.status}).`);
+
+      if (job.status === "listo") return job;
+      if (job.status === "error") throw new Error(job.error || "Falló el procesamiento.");
+
+      actualizarMensaje(job.status);
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    }
+
+    throw new Error("Se agotó el tiempo de espera (más de 14 minutos) procesando el excel.");
+  }
+
   async function ordenarExcel(e) {
     e.preventDefault();
     if (!archivoOrdenar) return;
@@ -187,41 +206,36 @@ export default function Admin() {
         const texto = await putRes.text().catch(() => "");
         throw new Error(`No se pudo subir el archivo a S3 (status ${putRes.status}). ${texto.slice(0, 200)}`);
       }
-      console.log("[ordenar-excel] subida a S3 ok, procesando...");
+      console.log("[ordenar-excel] subida a S3 ok, iniciando trabajo...");
 
-      setMensajeOrdenar({ tipo: "pendiente", texto: "Clasificando imágenes con IA... puede tardar varios minutos con archivos grandes." });
+      const startRes = await fetch("/api/ordenar-excel/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, tamanioEsperado: archivoOrdenar.size }),
+      });
+      const startData = await parsearRespuestaJson(startRes);
+      if (!startRes.ok) throw new Error(startData.error || "No se pudo iniciar el procesamiento.");
+      console.log("[ordenar-excel] job iniciado:", startData.jobId);
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 280000);
-      let respuesta;
-      try {
-        respuesta = await fetch("/api/ordenar-excel", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ key, tamanioEsperado: archivoOrdenar.size }),
-          signal: controller.signal,
+      const job = await esperarJob(startData.jobId, (status) => {
+        setMensajeOrdenar({
+          tipo: "pendiente",
+          texto:
+            status === "procesando"
+              ? "Clasificando imágenes con IA... puede tardar varios minutos con archivos grandes."
+              : "En cola...",
         });
-      } catch (err) {
-        if (err.name === "AbortError") {
-          throw new Error("Se agotó el tiempo de espera (más de 4 minutos y medio) procesando el excel.");
-        }
-        throw new Error(`Error de red hablando con el servidor: ${err.message}`);
-      } finally {
-        clearTimeout(timeoutId);
-      }
-
-      const data = await parsearRespuestaJson(respuesta);
-      if (!respuesta.ok) throw new Error(data.error || `El servidor respondió con error (status ${respuesta.status}).`);
-      console.log("[ordenar-excel] procesado ok:", data);
+      });
+      console.log("[ordenar-excel] job terminado:", job);
 
       const a = document.createElement("a");
-      a.href = data.downloadUrl;
+      a.href = job.downloadUrl;
       a.download = "ordenado.xlsx";
       document.body.appendChild(a);
       a.click();
       a.remove();
 
-      setResumenOrdenar(data.resumen || null);
+      setResumenOrdenar(job.resumen || null);
       setArchivoOrdenar(null);
       setMensajeOrdenar({ tipo: "ok", texto: "Listo, se descargó ordenado.xlsx." });
     } catch (err) {
