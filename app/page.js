@@ -1,83 +1,71 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 
-export default function Home() {
-  const [clientes, setClientes] = useState([]);
-  const [busqueda, setBusqueda] = useState("");
-  const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
+async function parsearRespuestaJson(respuesta) {
+  const texto = await respuesta.text();
+  try {
+    return JSON.parse(texto);
+  } catch {
+    console.error("Respuesta no-JSON del servidor:", respuesta.status, texto.slice(0, 500));
+    return {
+      error: `El servidor respondió algo inesperado (status ${respuesta.status}): ${texto.slice(0, 200) || "(vacío)"}`,
+    };
+  }
+}
+
+export default function Formulas() {
   const [archivo, setArchivo] = useState(null);
   const [procesando, setProcesando] = useState(false);
   const [mensaje, setMensaje] = useState(null);
+  const [resumen, setResumen] = useState(null);
 
-  useEffect(() => {
-    fetch("/api/clientes")
-      .then((r) => r.json())
-      .then(setClientes)
-      .catch(() => setMensaje({ tipo: "error", texto: "No se pudo cargar la lista de clientes." }));
-  }, []);
-
-  const clientesFiltrados = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
-    if (!q) return clientes;
-    return clientes.filter((c) => c.nombre.toLowerCase().includes(q));
-  }, [clientes, busqueda]);
-
-  function cambiarBusqueda(valor) {
-    setBusqueda(valor);
-    if (clienteSeleccionado && valor !== clienteSeleccionado.nombre) {
-      setClienteSeleccionado(null);
-    }
-  }
-
-  function limpiarSeleccion() {
-    setClienteSeleccionado(null);
-    setBusqueda("");
-  }
-
-  async function descargar() {
-    if (!clienteSeleccionado || !archivo) return;
+  async function procesar(e) {
+    e.preventDefault();
+    if (!archivo) return;
 
     setProcesando(true);
+    setResumen(null);
 
     try {
       setMensaje({ tipo: "pendiente", texto: "Subiendo archivo..." });
-      const presignRes = await fetch("/api/reprice/upload-url", { method: "POST" });
-      const presignData = await presignRes.json().catch(() => ({}));
+      const presignRes = await fetch("/api/formulas/upload-url", { method: "POST" });
+      const presignData = await parsearRespuestaJson(presignRes);
       if (!presignRes.ok) throw new Error(presignData.error || "No se pudo iniciar la subida.");
-      const { url: uploadUrl, key } = presignData;
+      const { url, key } = presignData;
 
-      const putRes = await fetch(uploadUrl, {
+      const putRes = await fetch(url, {
         method: "PUT",
         headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
         body: archivo,
       });
-      if (!putRes.ok) throw new Error("No se pudo subir el archivo a S3.");
+      if (!putRes.ok) {
+        const texto = await putRes.text().catch(() => "");
+        throw new Error(`No se pudo subir el archivo a S3 (status ${putRes.status}). ${texto.slice(0, 200)}`);
+      }
 
-      setMensaje({ tipo: "pendiente", texto: "Procesando..." });
-      const respuesta = await fetch("/api/reprice", {
+      setMensaje({ tipo: "pendiente", texto: "Calculando fórmulas..." });
+      const respuesta = await fetch("/api/formulas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clienteId: clienteSeleccionado.clienteId, key, tamanioEsperado: archivo.size }),
+        body: JSON.stringify({ key, tamanioEsperado: archivo.size }),
       });
 
-      const data = await respuesta.json().catch(() => ({}));
-      if (!respuesta.ok) throw new Error(data.error || "No se pudo generar el excel.");
+      const data = await parsearRespuestaJson(respuesta);
+      if (!respuesta.ok) throw new Error(data.error || `El servidor respondió con error (status ${respuesta.status}).`);
 
       const a = document.createElement("a");
       a.href = data.downloadUrl;
-      a.download = "actualizados.xlsx";
+      a.download = "actualizado.xlsx";
       document.body.appendChild(a);
       a.click();
       a.remove();
 
-      const filasOmitidas = Number(data.filasOmitidas || 0);
-      let texto = `Listo. Se descargó actualizados.xlsx para "${clienteSeleccionado.nombre}" (${clienteSeleccionado.porcentaje}%).`;
-      if (filasOmitidas > 0) {
-        texto += `\nSe omitieron ${filasOmitidas} fila(s) sin coincidencia en el excel base.`;
-      }
-      setMensaje({ tipo: "ok", texto });
+      setResumen(data.resumen);
+      setArchivo(null);
+      setMensaje({ tipo: "ok", texto: "Listo, se descargó actualizado.xlsx." });
     } catch (err) {
+      console.error("[formulas] error:", err);
       setMensaje({ tipo: "error", texto: err.message });
     } finally {
       setProcesando(false);
@@ -88,7 +76,8 @@ export default function Home() {
     <div className="page">
       <div>
         <nav className="top-nav">
-          <a href="/">Descargar</a>
+          <a href="/">Fórmulas</a>
+          <a href="/precios">Precios</a>
           <a href="/admin">Administración</a>
         </nav>
 
@@ -96,77 +85,49 @@ export default function Home() {
           <div className="card-header">
             <div className="icon">
               <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z" stroke="white" strokeWidth="1.6" strokeLinejoin="round" />
-                <path d="M14 4v5h5" stroke="white" strokeWidth="1.6" strokeLinejoin="round" />
-                <path d="M8 13.5h2M8 16.5h5M14.5 13.5v3" stroke="white" strokeWidth="1.6" strokeLinecap="round" />
+                <path d="M4 4h16v16H4z" stroke="white" strokeWidth="1.6" strokeLinejoin="round" />
+                <path d="M4 9h16M9 4v16" stroke="white" strokeWidth="1.6" />
               </svg>
             </div>
-            <h1>Descargar precios de cliente</h1>
+            <h1>Actualizar fórmulas</h1>
           </div>
           <p className="subtitle">
-            Buscá un cliente, subí su excel y descargá los precios actualizados con su porcentaje.
+            Subí el excel de productos y se agregan automáticamente las 8 columnas calculadas, igual que las
+            cargás a mano.
           </p>
 
-          <div className="field">
-            <label htmlFor="busqueda">Cliente</label>
-            <input
-              type="text"
-              id="busqueda"
-              placeholder="Buscar por nombre..."
-              value={busqueda}
-              onChange={(e) => cambiarBusqueda(e.target.value)}
-              autoComplete="off"
-            />
-          </div>
+          <form onSubmit={procesar}>
+            <div className="field">
+              <label htmlFor="archivo">Excel de productos</label>
+              <input
+                type="file"
+                id="archivo"
+                accept=".xlsx"
+                onChange={(e) => setArchivo(e.target.files[0] || null)}
+              />
+            </div>
 
-          {busqueda.trim() && !clienteSeleccionado && (
-            <ul className="lista-clientes" style={{ marginBottom: 20 }}>
-              {clientesFiltrados.length === 0 && <li>Sin resultados.</li>}
-              {clientesFiltrados.map((c) => (
-                <li
-                  key={c.clienteId}
-                  className="seleccionable"
-                  onClick={() => {
-                    setClienteSeleccionado(c);
-                    setBusqueda(c.nombre);
-                  }}
-                >
-                  <span className="cliente-nombre">{c.nombre}</span>
-                  <span className="cliente-porcentaje">{c.porcentaje}%</span>
-                </li>
-              ))}
-            </ul>
-          )}
+            <button type="submit" disabled={!archivo || procesando}>
+              Procesar y descargar
+            </button>
+          </form>
 
-          {clienteSeleccionado && (
-            <ul className="lista-clientes" style={{ marginBottom: 20 }}>
-              <li className="seleccionado">
-                <span className="cliente-nombre">{clienteSeleccionado.nombre}</span>
-                <span className="cliente-porcentaje">{clienteSeleccionado.porcentaje}%</span>
-                <div className="acciones-fila">
-                  <button type="button" className="secundario" onClick={limpiarSeleccion}>
-                    Cambiar
-                  </button>
-                </div>
+          {mensaje && <div className={`mensaje ${mensaje.tipo}`}>{mensaje.texto}</div>}
+
+          {resumen && (
+            <ul className="lista-clientes" style={{ marginTop: 12 }}>
+              <li>
+                <span className="cliente-nombre">Filas de producto</span>
+                <span className="cliente-porcentaje">
+                  {resumen.primeraFilaProducto}-{resumen.ultimaFilaProducto} ({resumen.cantidadFilasProducto})
+                </span>
+              </li>
+              <li>
+                <span className="cliente-nombre">Amount of Goods (fila {resumen.filaMarcador})</span>
+                <span className="cliente-porcentaje">{resumen.valorJ}</span>
               </li>
             </ul>
           )}
-
-          <div className="field">
-            <label htmlFor="archivo">Excel a modificar</label>
-            <input
-              type="file"
-              id="archivo"
-              accept=".xlsx"
-              onChange={(e) => setArchivo(e.target.files[0] || null)}
-            />
-          </div>
-
-          <button onClick={descargar} disabled={!clienteSeleccionado || !archivo || procesando}>
-            Descargar
-          </button>
-
-          {mensaje && <div className={`mensaje ${mensaje.tipo}`}>{mensaje.texto}</div>}
         </div>
       </div>
     </div>

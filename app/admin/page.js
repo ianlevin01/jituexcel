@@ -250,7 +250,8 @@ export default function Admin() {
     <div className="page">
       <div>
         <nav className="top-nav">
-          <a href="/">Descargar</a>
+          <a href="/">Fórmulas</a>
+          <a href="/precios">Precios</a>
           <a href="/admin">Administración</a>
         </nav>
 
