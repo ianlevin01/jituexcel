@@ -7,7 +7,8 @@ const {
   getPresignedDownloadUrl,
   deleteObject,
 } = require("../../../lib/s3");
-const { aplicarFormulas } = require("../../../lib/formulas-productos");
+const { calcularPlan } = require("../../../lib/formulas-productos");
+const { aplicarFormulasAlXlsx } = require("../../../lib/xlsx-patch");
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,15 +55,28 @@ export async function POST(request) {
       return Response.json({ error: `El archivo no es un Excel válido (${err.message}).` }, { status: 400 });
     }
 
-    let resumen;
+    let plan;
     try {
-      resumen = aplicarFormulas(workbook);
+      plan = calcularPlan(workbook);
     } catch (err) {
       await deleteObject(key).catch(() => {});
       return Response.json({ error: err.message }, { status: 400 });
     }
 
-    const outputBuffer = await workbook.xlsx.writeBuffer();
+    let outputBuffer;
+    try {
+      // Nunca se vuelve a guardar via ExcelJS (workbook.xlsx.writeBuffer): eso
+      // reconstruye el archivo entero y pierde lo que ExcelJS no sabe leer
+      // (imagenes/metadata de WPS, customXml, etc). En cambio, se parchea
+      // quirurgicamente el XML del archivo ORIGINAL, tocando solo las celdas nuevas.
+      outputBuffer = await aplicarFormulasAlXlsx(buffer, plan);
+    } catch (err) {
+      await deleteObject(key).catch(() => {});
+      console.error("Error aplicando el parche de formulas:", err);
+      return Response.json({ error: `No se pudo generar el excel: ${err.message}` }, { status: 500 });
+    }
+
+    const { celdasProducto, celdasPie, ...resumen } = plan;
     const outputKey = `outputs/formulas-${crypto.randomUUID()}.xlsx`;
     await putObjectBuffer(outputKey, outputBuffer);
     const downloadUrl = await getPresignedDownloadUrl(outputKey, "actualizado.xlsx");
