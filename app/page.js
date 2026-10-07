@@ -123,7 +123,9 @@ export default function Formulas() {
                 </span>
               </li>
               <li>
-                <span className="cliente-nombre">Amount of Goods (fila {resumen.filaMarcador})</span>
+                <span className="cliente-nombre">
+                  Amount of Goods ({resumen.columnaAmount}{resumen.filaAmount})
+                </span>
                 <span className="cliente-porcentaje">{resumen.valorJ}</span>
               </li>
             </ul>
