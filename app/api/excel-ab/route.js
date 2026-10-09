@@ -81,7 +81,7 @@ export async function POST(request) {
     await putObjectBuffer(outputKey, outputBuffer);
     const downloadUrl = await getPresignedDownloadUrl(outputKey, "actualizado.xlsx");
 
-    const { valoresQ, ...resumen } = plan;
+    const { valoresQ, codigosSinPrecio, ...resumen } = plan;
     return Response.json({ downloadUrl, resumen });
   } catch (err) {
     console.error("Error en /api/excel-ab:", err);

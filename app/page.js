@@ -219,9 +219,9 @@ export default function Formulas() {
             <h1>Combinar excel A y B</h1>
           </div>
           <p className="subtitle">
-            Subí el excel A (el que se modifica) y el excel B (de donde se copia el precio). Se inserta una
-            columna nueva en Q de A (corriendo todo lo que había de Q en adelante) y se pega ahí la columna D
-            del excel B.
+            Subí el excel A (el que se modifica) y el excel B (de donde se copia el precio). Por cada producto
+            de A se busca su precio en B por código (columna B en A, columna A en B) y se pega en una columna
+            nueva Q de A, corriendo todo lo que había de Q en adelante.
           </p>
 
           <form onSubmit={procesarAB}>
@@ -259,13 +259,15 @@ export default function Formulas() {
                 <span className="cliente-porcentaje">{resumenAB.columnaQ}</span>
               </li>
               <li>
-                <span className="cliente-nombre">Columna copiada de B</span>
-                <span className="cliente-porcentaje">{resumenAB.columnaDB}</span>
-              </li>
-              <li>
-                <span className="cliente-nombre">Valores pegados</span>
+                <span className="cliente-nombre">Precios encontrados y pegados</span>
                 <span className="cliente-porcentaje">{resumenAB.cantidadValores}</span>
               </li>
+              {resumenAB.cantidadSinPrecio > 0 && (
+                <li>
+                  <span className="cliente-nombre">Códigos de A sin precio en B</span>
+                  <span className="cliente-porcentaje">{resumenAB.cantidadSinPrecio}</span>
+                </li>
+              )}
             </ul>
           )}
         </div>
