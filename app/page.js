@@ -219,8 +219,9 @@ export default function Formulas() {
             <h1>Combinar excel A y B</h1>
           </div>
           <p className="subtitle">
-            Subí el excel A (el que se modifica) y el excel B (de donde se copia el precio). Se agregan 3
-            columnas nuevas en A con el precio de B y los cálculos derivados.
+            Subí el excel A (el que se modifica) y el excel B (de donde se copia el precio). Se inserta una
+            columna nueva en Q de A (corriendo todo lo que había de Q en adelante) y se pega ahí la columna D
+            del excel B.
           </p>
 
           <form onSubmit={procesarAB}>
@@ -254,21 +255,17 @@ export default function Formulas() {
           {resumenAB && (
             <ul className="lista-clientes" style={{ marginTop: 12 }}>
               <li>
-                <span className="cliente-nombre">Columnas agregadas</span>
-                <span className="cliente-porcentaje">
-                  {resumenAB.columnaQ}, {resumenAB.columnaR}, {resumenAB.columnaS}
-                </span>
+                <span className="cliente-nombre">Columna insertada en A</span>
+                <span className="cliente-porcentaje">{resumenAB.columnaQ}</span>
               </li>
               <li>
-                <span className="cliente-nombre">Filas procesadas</span>
-                <span className="cliente-porcentaje">{resumenAB.cantidadFilasProcesadas}</span>
+                <span className="cliente-nombre">Columna copiada de B</span>
+                <span className="cliente-porcentaje">{resumenAB.columnaDB}</span>
               </li>
-              {resumenAB.filasOmitidas > 0 && (
-                <li>
-                  <span className="cliente-nombre">Omitidas (sin precio en B)</span>
-                  <span className="cliente-porcentaje">{resumenAB.filasOmitidas}</span>
-                </li>
-              )}
+              <li>
+                <span className="cliente-nombre">Valores pegados</span>
+                <span className="cliente-porcentaje">{resumenAB.cantidadValores}</span>
+              </li>
             </ul>
           )}
         </div>

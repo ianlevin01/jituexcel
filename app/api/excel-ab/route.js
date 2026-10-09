@@ -7,8 +7,8 @@ const {
   getPresignedDownloadUrl,
   deleteObject,
 } = require("../../../lib/s3");
-const { calcularPlanAB } = require("../../../lib/excel-ab");
-const { aplicarPlanABAlXlsx } = require("../../../lib/xlsx-patch");
+const { calcularPlanInsertarColumna } = require("../../../lib/excel-ab");
+const { insertarColumnaYPegarValores } = require("../../../lib/xlsx-patch");
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,7 +58,7 @@ export async function POST(request) {
 
     let plan;
     try {
-      plan = calcularPlanAB(workbookA, workbookB);
+      plan = calcularPlanInsertarColumna(workbookA, workbookB);
     } catch (err) {
       await Promise.all([deleteObject(keyA).catch(() => {}), deleteObject(keyB).catch(() => {})]);
       return Response.json({ error: err.message }, { status: 400 });
@@ -69,7 +69,7 @@ export async function POST(request) {
       // Igual que en "Formulas": nunca se vuelve a guardar el excel A via ExcelJS
       // completo (eso pierde imagenes/metadata que ExcelJS no entiende). Se
       // parchea quirurgicamente el XML del archivo A original.
-      outputBuffer = await aplicarPlanABAlXlsx(bufferA, plan);
+      outputBuffer = await insertarColumnaYPegarValores(bufferA, plan);
     } catch (err) {
       console.error("Error aplicando el parche A/B:", err);
       return Response.json({ error: `No se pudo generar el excel: ${err.message}` }, { status: 500 });
@@ -81,7 +81,7 @@ export async function POST(request) {
     await putObjectBuffer(outputKey, outputBuffer);
     const downloadUrl = await getPresignedDownloadUrl(outputKey, "actualizado.xlsx");
 
-    const { celdasProducto, ...resumen } = plan;
+    const { valoresQ, ...resumen } = plan;
     return Response.json({ downloadUrl, resumen });
   } catch (err) {
     console.error("Error en /api/excel-ab:", err);
