@@ -262,6 +262,12 @@ export default function Formulas() {
                 <span className="cliente-nombre">Precios encontrados y pegados</span>
                 <span className="cliente-porcentaje">{resumenAB.cantidadValores}</span>
               </li>
+              {resumenAB.cantidadAproximados > 0 && (
+                <li>
+                  <span className="cliente-nombre">...de esos, por coincidencia aproximada</span>
+                  <span className="cliente-porcentaje">{resumenAB.cantidadAproximados}</span>
+                </li>
+              )}
               {resumenAB.cantidadSinPrecio > 0 && (
                 <li>
                   <span className="cliente-nombre">Códigos de A sin precio en B</span>
